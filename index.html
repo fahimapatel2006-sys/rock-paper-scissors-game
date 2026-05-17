@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Rock Paper Scissors</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --rock:      #ff6b9d;
+      --paper:     #5eead4;
+      --scissors:  #fbbf24;
+      --text:      #f0f0f8;
+      --muted:     #6b6b90;
+      --surface:   rgba(255,255,255,0.04);
+      --border:    rgba(255,255,255,0.09);
+      --glow-r:    rgba(255,107,157,0.45);
+      --glow-p:    rgba(94,234,212,0.45);
+      --glow-s:    rgba(251,191,36,0.45);
+    }
+
+    html, body {
+      min-height: 100vh;
+      background:
+        radial-gradient(ellipse 90% 65% at 15% -5%,  #2a0a4a 0%, transparent 55%),
+        radial-gradient(ellipse 70% 55% at 85% 105%,  #0b1f4a 0%, transparent 55%),
+        radial-gradient(ellipse 55% 45% at 55% 52%,   #160830 0%, transparent 65%),
+        #06040e;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ─── Animated bg grid ─── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+      background-size: 48px 48px;
+      animation: gridDrift 20s linear infinite;
+      pointer-events: none;
+      z-index: 0;
+    }
+    @keyframes gridDrift {
+      from { background-position: 0 0; }
+      to   { background-position: 48px 48px; }
+    }
+
+    /* ─── Blob glows ─── */
+    .blob {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: .38;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .blob-1 { width: 500px; height: 500px; background: var(--rock);    top: -150px; left: -150px; animation: blobFloat1 12s ease-in-out infinite; }
+    .blob-2 { width: 400px; height: 400px; background: var(--paper);   bottom: -100px; right: -100px; animation: blobFloat2 15s ease-in-out infinite; }
+    .blob-3 { width: 300px; height: 300px; background: var(--scissors); top: 40%; left: 50%; transform: translate(-50%,-50%); animation: blobFloat3 10s ease-in-out infinite; }
+
+    @keyframes blobFloat1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(40px,30px)} }
+    @keyframes blobFloat2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-30px,-40px)} }
+    @keyframes blobFloat3 { 0%,100%{transform:translate(-50%,-50%)} 50%{transform:translate(-50%,-40%)} }
+
+    /* ─── Layout ─── */
+    main {
+      position: relative;
+      z-index: 1;
+      width: min(960px, 95vw);
+      padding: 3rem 0 4rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2.5rem;
+    }
+
+    /* ─── Header ─── */
+    header {
+      text-align: center;
+      animation: fadeDown .7s ease both;
+    }
+    @keyframes fadeDown { from{opacity:0;transform:translateY(-20px)} to{opacity:1;transform:none} }
+
+    .kicker {
+      font-size: .7rem;
+      letter-spacing: .25em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: .4rem;
+    }
+    h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(3rem, 8vw, 6.5rem);
+      line-height: 1;
+      letter-spacing: .04em;
+      background: linear-gradient(135deg, var(--rock) 0%, var(--paper) 50%, var(--scissors) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* ─── Score Board ─── */
+    .scoreboard {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      background: rgba(255,255,255,0.04); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 1.2rem 2.5rem;
+      animation: fadeDown .7s .1s ease both;
+    }
+    .score-col { text-align: center; }
+    .score-label {
+      font-size: .6rem;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: .2rem;
+    }
+    .score-value {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 3rem;
+      line-height: 1;
+    }
+    .score-col.player  .score-value { color: var(--paper); }
+    .score-col.cpu     .score-value { color: var(--rock); }
+    .score-divider {
+      width: 1px; height: 48px;
+      background: var(--border);
+    }
+    .vs-badge {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.2rem;
+      color: var(--muted);
+      letter-spacing: .1em;
+    }
+
+    /* ─── Battle Arena ─── */
+    .arena {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 1.5rem;
+      animation: fadeDown .7s .2s ease both;
+    }
+    .arena-side {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .8rem;
+    }
+    .arena-label {
+      font-size: .65rem;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* ─── Choice Display ─── */
+    .choice-display {
+      width: 140px;
+      height: 140px;
+      border-radius: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 4rem;
+      background: rgba(255,255,255,0.04); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border: 2px solid var(--border);
+      position: relative;
+      transition: border-color .3s, box-shadow .3s;
+    }
+    .choice-display.rock     { border-color: var(--rock);    box-shadow: 0 0 40px var(--glow-r); }
+    .choice-display.paper    { border-color: var(--paper);   box-shadow: 0 0 40px var(--glow-p); }
+    .choice-display.scissors { border-color: var(--scissors);box-shadow: 0 0 40px var(--glow-s); }
+    .choice-display.idle     { animation: idlePulse 3s ease-in-out infinite; }
+
+    @keyframes idlePulse {
+      0%,100%{ box-shadow: 0 0 0px transparent; }
+      50%    { box-shadow: 0 0 24px rgba(255,255,255,.06); }
+    }
+
+    /* shake on reveal */
+    .choice-display.reveal { animation: revealBounce .5s cubic-bezier(.36,.07,.19,.97) both; }
+    @keyframes revealBounce {
+      0%  { transform: scale(.6) rotate(-8deg); opacity:0; }
+      60% { transform: scale(1.1) rotate(3deg); }
+      80% { transform: scale(.97); }
+      100%{ transform: scale(1) rotate(0); opacity:1; }
+    }
+
+    .arena-vs {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .4rem;
+    }
+    .arena-vs span {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.2rem;
+      color: var(--muted);
+      letter-spacing: .1em;
+    }
+    .flash-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--muted);
+      animation: dotBlink 1.4s ease-in-out infinite;
+    }
+    .flash-dot:nth-child(2) { animation-delay: .2s; }
+    .flash-dot:nth-child(3) { animation-delay: .4s; }
+    @keyframes dotBlink { 0%,80%,100%{opacity:.2} 40%{opacity:1} }
+
+    /* ─── Result Banner ─── */
+    .result-banner {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: fadeDown .7s .25s ease both;
+    }
+    .result-text {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2rem;
+      letter-spacing: .15em;
+      opacity: 0;
+      transform: scale(.8);
+      transition: opacity .3s, transform .3s;
+    }
+    .result-text.visible { opacity: 1; transform: scale(1); }
+    .result-text.win  { color: var(--paper); }
+    .result-text.lose { color: var(--rock); }
+    .result-text.draw { color: var(--scissors); }
+
+    /* ─── Choice Cards ─── */
+    .choices {
+      display: flex;
+      gap: 1.2rem;
+      animation: fadeUp .7s .3s ease both;
+    }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:none} }
+
+    .choice-card {
+      position: relative;
+      cursor: pointer;
+      border: none;
+      background: none;
+      padding: 0;
+      outline: none;
+    }
+    .choice-card-inner {
+      width: 110px;
+      height: 128px;
+      border-radius: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: .5rem;
+      background: rgba(255,255,255,0.04); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border: 2px solid var(--border);
+      transition: transform .2s cubic-bezier(.34,1.56,.64,1), border-color .2s, box-shadow .2s;
+    }
+    .choice-card:hover .choice-card-inner,
+    .choice-card:focus-visible .choice-card-inner {
+      transform: translateY(-8px) scale(1.05);
+    }
+    .choice-card.rock:hover .choice-card-inner,
+    .choice-card.rock:focus-visible .choice-card-inner {
+      border-color: var(--rock);
+      box-shadow: 0 12px 40px var(--glow-r), inset 0 0 20px rgba(255,77,109,.05);
+    }
+    .choice-card.paper:hover .choice-card-inner,
+    .choice-card.paper:focus-visible .choice-card-inner {
+      border-color: var(--paper);
+      box-shadow: 0 12px 40px var(--glow-p), inset 0 0 20px rgba(76,201,240,.05);
+    }
+    .choice-card.scissors:hover .choice-card-inner,
+    .choice-card.scissors:focus-visible .choice-card-inner {
+      border-color: var(--scissors);
+      box-shadow: 0 12px 40px var(--glow-s), inset 0 0 20px rgba(247,183,49,.05);
+    }
+
+    .choice-card:active .choice-card-inner {
+      transform: translateY(-2px) scale(.97);
+    }
+
+    .choice-emoji { font-size: 2.8rem; line-height: 1; }
+    .choice-name {
+      font-size: .65rem;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 500;
+      transition: color .2s;
+    }
+    .choice-card.rock:hover .choice-name     { color: var(--rock); }
+    .choice-card.paper:hover .choice-name    { color: var(--paper); }
+    .choice-card.scissors:hover .choice-name { color: var(--scissors); }
+
+    /* ripple */
+    .choice-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 24px;
+      opacity: 0;
+      background: radial-gradient(circle, rgba(255,255,255,.15) 0%, transparent 70%);
+      transform: scale(0);
+      transition: transform .4s, opacity .4s;
+    }
+    .choice-card:active::after { transform: scale(1); opacity: 1; transition: none; }
+
+    /* ─── Reset Button ─── */
+    .btn-reset {
+      margin-top: .5rem;
+      padding: .75rem 2.5rem;
+      font-family: 'DM Sans', sans-serif;
+      font-size: .8rem;
+      font-weight: 700;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      color: var(--text);
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 50px;
+      cursor: pointer;
+      transition: border-color .2s, background .2s, transform .2s;
+      animation: fadeUp .7s .4s ease both;
+    }
+    .btn-reset:hover {
+      border-color: var(--muted);
+      background: rgba(255,255,255,.04);
+      transform: translateY(-2px);
+    }
+    .btn-reset:active { transform: scale(.96); }
+
+    /* ─── Round history ─── */
+    .history {
+      width: 100%;
+      animation: fadeUp .7s .45s ease both;
+    }
+    .history-title {
+      font-size: .6rem;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: .75rem;
+      text-align: center;
+    }
+    .history-dots {
+      display: flex;
+      justify-content: center;
+      gap: .45rem;
+      flex-wrap: wrap;
+    }
+    .hdot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      border: 1.5px solid var(--border);
+      transition: background .3s, border-color .3s;
+    }
+    .hdot.win  { background: var(--paper);    border-color: var(--paper); }
+    .hdot.lose { background: var(--rock);     border-color: var(--rock); }
+    .hdot.draw { background: var(--scissors); border-color: var(--scissors); }
+
+    /* ─── Confetti burst (CSS only, decorative) ─── */
+    .confetti-wrap {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 10;
+      display: none;
+    }
+    .confetti-wrap.active { display: block; }
+    .confetti-piece {
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      width: 8px; height: 12px;
+      border-radius: 2px;
+      opacity: 0;
+    }
+    /* generate 12 pieces via nth-child; JS would wire .active */
+    .confetti-piece:nth-child(1)  { background: var(--rock);    animation: confettiFly1  .9s .0s ease-out both; }
+    .confetti-piece:nth-child(2)  { background: var(--paper);   animation: confettiFly2  .9s .05s ease-out both; }
+    .confetti-piece:nth-child(3)  { background: var(--scissors);animation: confettiFly3  .9s .1s ease-out both; }
+    .confetti-piece:nth-child(4)  { background: var(--rock);    animation: confettiFly4  .9s .0s ease-out both; }
+    .confetti-piece:nth-child(5)  { background: var(--paper);   animation: confettiFly1  .9s .07s ease-out both; }
+    .confetti-piece:nth-child(6)  { background: var(--scissors);animation: confettiFly2  .9s .03s ease-out both; }
+    .confetti-piece:nth-child(7)  { background: var(--rock);    animation: confettiFly3  .9s .12s ease-out both; }
+    .confetti-piece:nth-child(8)  { background: var(--paper);   animation: confettiFly4  .9s .06s ease-out both; }
+    .confetti-piece:nth-child(9)  { background: var(--scissors);animation: confettiFly1  .9s .09s ease-out both; }
+    .confetti-piece:nth-child(10) { background: var(--rock);    animation: confettiFly2  .9s .0s ease-out both; }
+    .confetti-piece:nth-child(11) { background: var(--paper);   animation: confettiFly3  .9s .04s ease-out both; }
+    .confetti-piece:nth-child(12) { background: var(--scissors);animation: confettiFly4  .9s .08s ease-out both; }
+
+    @keyframes confettiFly1  { 0%{opacity:1;transform:translate(0,0) rotate(0)}   100%{opacity:0;transform:translate(-140px,-200px) rotate(540deg)} }
+    @keyframes confettiFly2  { 0%{opacity:1;transform:translate(0,0) rotate(0)}   100%{opacity:0;transform:translate(160px,-180px) rotate(-360deg)} }
+    @keyframes confettiFly3  { 0%{opacity:1;transform:translate(0,0) rotate(0)}   100%{opacity:0;transform:translate(-60px,-240px) rotate(720deg)} }
+    @keyframes confettiFly4  { 0%{opacity:1;transform:translate(0,0) rotate(0)}   100%{opacity:0;transform:translate(90px,-210px) rotate(-540deg)} }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 600px) {
+      .choice-card-inner { width: 90px; height: 108px; }
+      .choice-emoji { font-size: 2.2rem; }
+      .choice-display { width: 110px; height: 110px; font-size: 3rem; }
+      .scoreboard { padding: 1rem 1.5rem; gap: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Background decoration -->
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+
+  <!-- Confetti (toggled by JS) -->
+  <div class="confetti-wrap" id="confetti">
+    <div class="confetti-piece"></div><div class="confetti-piece"></div>
+    <div class="confetti-piece"></div><div class="confetti-piece"></div>
+    <div class="confetti-piece"></div><div class="confetti-piece"></div>
+    <div class="confetti-piece"></div><div class="confetti-piece"></div>
+    <div class="confetti-piece"></div><div class="confetti-piece"></div>
+    <div class="confetti-piece"></div><div class="confetti-piece"></div>
+  </div>
+
+  <main>
+
+    <!-- Header -->
+    <header>
+      <p class="kicker">Choose your weapon</p>
+      <h1>Rock Paper<br>Scissors</h1>
+    </header>
+
+    <!-- Score -->
+    <div class="scoreboard">
+      <div class="score-col player">
+        <div class="score-label">You</div>
+        <div class="score-value" id="scorePlayer">0</div>
+      </div>
+      <div class="score-divider"></div>
+      <div class="vs-badge">VS</div>
+      <div class="score-divider"></div>
+      <div class="score-col cpu">
+        <div class="score-label">AXIOM 🤖</div>
+        <div class="score-value" id="scoreCpu">0</div>
+      </div>
+    </div>
+
+    <!-- Arena -->
+    <div class="arena">
+      <div class="arena-side">
+        <div class="arena-label">Your pick</div>
+        <div class="choice-display idle" id="playerDisplay">❓</div>
+      </div>
+
+      <div class="arena-vs">
+        <span>VS</span>
+        <div class="flash-dot"></div>
+        <div class="flash-dot"></div>
+        <div class="flash-dot"></div>
+      </div>
+
+      <div class="arena-side">
+        <div class="arena-label">AXIOM's pick</div>
+        <div class="choice-display idle" id="cpuDisplay">❓</div>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div class="result-banner">
+      <div class="result-text" id="resultText">—</div>
+    </div>
+
+    <!-- Choice cards -->
+    <div class="choices">
+      <button class="choice-card rock" data-choice="rock">
+        <div class="choice-card-inner">
+          <span class="choice-emoji">🪨</span>
+          <span class="choice-name">Rock</span>
+        </div>
+      </button>
+      <button class="choice-card paper" data-choice="paper">
+        <div class="choice-card-inner">
+          <span class="choice-emoji">📄</span>
+          <span class="choice-name">Paper</span>
+        </div>
+      </button>
+      <button class="choice-card scissors" data-choice="scissors">
+        <div class="choice-card-inner">
+          <span class="choice-emoji">✂️</span>
+          <span class="choice-name">Scissors</span>
+        </div>
+      </button>
+    </div>
+
+    <!-- Reset -->
+    <button class="btn-reset" id="btnReset">↺ Reset Score</button>
+
+    <!-- History dots -->
+    <div class="history">
+      <div class="history-title">Round history</div>
+      <div class="history-dots" id="historyDots">
+        <!-- JS populates: .hdot.win / .lose / .draw -->
+        <div class="hdot"></div>
+        <div class="hdot"></div>
+        <div class="hdot"></div>
+        <div class="hdot"></div>
+        <div class="hdot"></div>
+        <div class="hdot"></div>
+        <div class="hdot"></div>
+        <div class="hdot"></div>
+        <div class="hdot"></div>
+        <div class="hdot"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="script.js"></script>
+
+</body>
+</html>
