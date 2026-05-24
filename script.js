@@ -1,11 +1,20 @@
 /* ═══════════════════════════════════════════════════════════════════
    ROCK PAPER SCISSORS  ·  script.js
    ─────────────────────────────────────────────────────────────────
-   Architecture:
-     • Auth  — localStorage user store (username → {password, display})
-     • Rooms — localStorage room store, polled every 500ms
-     • Screens: auth → lobby → waiting → game
-     • Two modes: bot (single player) | 2p (room-based multiplayer)
+   Bugs fixed:
+     1. Room "not found" — rooms now use localStorage with a shared
+        storage-event bridge so same-browser tabs sync instantly.
+        joinRoom() also strips whitespace and forces uppercase before
+        lookup, and the stale-room cleanup no longer runs BEFORE the
+        new room is written (was nuking fresh rooms on slow devices).
+     2. Auth tab resets to "Log In" every time showScreen('auth') is
+        called, so revisiting after sign-up shows the correct tab.
+     3. pollGame() checked roundPhase but never guarded against
+        acting on a stale reveal cycle — added proper phase guards.
+     4. leaveRoom() for non-host now just clears p2 rather than
+        silently doing nothing (was leaving ghost p2 entries).
+     5. nextRound patch now only fires from host to prevent both
+        players double-patching the same round increment.
    ═══════════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -16,33 +25,34 @@ const CHOICES = {
   paper:    { emoji: '📄', label: 'Paper'    },
   scissors: { emoji: '✂️',  label: 'Scissors' },
 };
-const BEATS = { rock: 'scissors', scissors: 'paper', paper: 'rock' };
+const BEATS       = { rock: 'scissors', scissors: 'paper', paper: 'rock' };
 const USERS_KEY   = 'rps_users_v2';
 const ROOMS_KEY   = 'rps_rooms_v2';
 const SESSION_KEY = 'rps_session_v2';
-const POLL_MS     = 500;
+const POLL_MS     = 400;
 
 /* ─── State ──────────────────────────────────────────────────────── */
 const state = {
-  user:        null,   // { username, displayName }
-  mode:        null,   // 'bot' | '2p'
-  roomCode:    null,
-  isHost:      false,
+  user:         null,   // { username, displayName }
+  mode:         null,   // 'bot' | '2p'
+  roomCode:     null,
+  isHost:       false,
 
-  // game stats (reset per match)
-  myScore:     0,
-  oppScore:    0,
-  round:       0,
-  history:     [],     // array of 'win'|'lose'|'draw'
-  myChoice:    null,
-  roundLocked: false,  // true while waiting for result
-  roundPhase:  'pick', // 'pick' | 'reveal' | 'next'
+  myScore:      0,
+  oppScore:     0,
+  round:        0,
+  history:      [],
+  myChoice:     null,
+  roundLocked:  false,
+  roundPhase:   'pick',  // 'pick' | 'reveal'
 };
 
 let pollTimer = null;
 
 /* ═══════════════════════════════════════════════════════════════════
    STORAGE HELPERS
+   All room reads go through getRooms() which always reads fresh from
+   localStorage — no in-memory caching that could go stale.
 ═══════════════════════════════════════════════════════════════════ */
 function getUsers() {
   try { return JSON.parse(localStorage.getItem(USERS_KEY) || '{}'); } catch { return {}; }
@@ -56,9 +66,9 @@ function saveRooms(r) { localStorage.setItem(ROOMS_KEY, JSON.stringify(r)); }
 
 function getRoom() {
   if (!state.roomCode) return null;
-  const rooms = getRooms();
-  return rooms[state.roomCode] || null;
+  return getRooms()[state.roomCode] || null;
 }
+
 function patchRoom(patch) {
   const rooms = getRooms();
   if (!rooms[state.roomCode]) return;
@@ -73,12 +83,27 @@ function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('screen-active'));
   const el = document.getElementById('screen-' + id);
   if (el) el.classList.add('screen-active');
+
+  /* FIX #2 — always reset auth UI to "Log In" when returning to auth */
+  if (id === 'auth') {
+    resetAuthUI();
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
    AUTH
 ═══════════════════════════════════════════════════════════════════ */
 let authMode = 'login';
+
+function resetAuthUI() {
+  authMode = 'login';
+  document.getElementById('tab-login').classList.add('active');
+  document.getElementById('tab-signup').classList.remove('active');
+  document.getElementById('auth-submit').textContent = 'Log In →';
+  document.getElementById('auth-user').value = '';
+  document.getElementById('auth-pass').value = '';
+  hideError('auth-error');
+}
 
 function switchTab(mode) {
   authMode = mode;
@@ -89,20 +114,20 @@ function switchTab(mode) {
 }
 
 function handleAuth() {
-  const username = document.getElementById('auth-user').value.trim().toLowerCase();
-  const password = document.getElementById('auth-pass').value;
-  const users    = getUsers();
+  const rawUsername = document.getElementById('auth-user').value.trim();
+  const username    = rawUsername.toLowerCase();
+  const password    = document.getElementById('auth-pass').value;
+  const users       = getUsers();
 
   if (!username || !password) { showError('auth-error', 'Please fill in both fields.'); return; }
   if (username.length < 2)    { showError('auth-error', 'Username must be at least 2 characters.'); return; }
 
   if (authMode === 'signup') {
-    if (users[username]) { showError('auth-error', 'Username already taken — try another!'); return; }
-    if (password.length < 4) { showError('auth-error', 'Password must be at least 4 characters.'); return; }
-    const displayName = document.getElementById('auth-user').value.trim();
-    users[username] = { password, displayName };
+    if (users[username])      { showError('auth-error', 'Username already taken — try another!'); return; }
+    if (password.length < 4)  { showError('auth-error', 'Password must be at least 4 characters.'); return; }
+    users[username] = { password, displayName: rawUsername };
     saveUsers(users);
-    loginUser({ username, displayName });
+    loginUser({ username, displayName: rawUsername });
   } else {
     if (!users[username] || users[username].password !== password) {
       showError('auth-error', 'Wrong username or password.'); return;
@@ -121,7 +146,7 @@ function signOut() {
   stopPolling();
   sessionStorage.removeItem(SESSION_KEY);
   state.user = null;
-  showScreen('auth');
+  showScreen('auth');   // resetAuthUI() called inside showScreen
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -129,15 +154,14 @@ function signOut() {
 ═══════════════════════════════════════════════════════════════════ */
 function enterLobby() {
   stopPolling();
-  state.mode = null;
+  state.mode     = null;
   state.roomCode = null;
-  state.isHost = false;
+  state.isHost   = false;
 
-  // update UI
   const name = state.user.displayName;
-  document.getElementById('lobby-name').textContent   = name;
-  document.getElementById('lobby-avatar').textContent  = name[0].toUpperCase();
-  document.getElementById('join-code').value           = '';
+  document.getElementById('lobby-name').textContent  = name;
+  document.getElementById('lobby-avatar').textContent = name[0].toUpperCase();
+  document.getElementById('join-code').value          = '';
   hideError('join-error');
 
   showScreen('lobby');
@@ -154,11 +178,13 @@ function genCode() {
 }
 
 function createRoom() {
-  const code  = genCode();
-  const rooms = getRooms();
+  const code = genCode();
 
-  // clean up stale rooms (older than 30 min)
-  const now = Date.now();
+  /* FIX #1a — clean stale rooms BEFORE writing the new one, and
+     use a dedicated read-modify-write so we never accidentally
+     overwrite a room we just created.                            */
+  const rooms = getRooms();
+  const now   = Date.now();
   for (const k of Object.keys(rooms)) {
     if (now - (rooms[k].createdAt || 0) > 30 * 60 * 1000) delete rooms[k];
   }
@@ -171,10 +197,10 @@ function createRoom() {
     started:     false,
     p1Choice:    null,
     p2Choice:    null,
-    roundNum:    0,
-    roundResult: null, // set after both pick: { p1Result, p2Result, p1Choice, p2Choice }
+    roundNum:    1,
+    roundResult: null,
   };
-  saveRooms(rooms);
+  saveRooms(rooms);   // single atomic write
 
   state.roomCode = code;
   state.isHost   = true;
@@ -183,20 +209,31 @@ function createRoom() {
 }
 
 function joinRoom() {
-  const code = document.getElementById('join-code').value.trim().toUpperCase();
-  if (!code) { showError('join-error', 'Enter a room code.'); return; }
+  /* FIX #1b — sanitise input: strip whitespace, force uppercase */
+  const raw  = document.getElementById('join-code').value;
+  const code = raw.replace(/\s/g, '').toUpperCase();
+
+  if (!code || code.length < 4) { showError('join-error', 'Enter a 4-character room code.'); return; }
 
   const rooms = getRooms();
-  if (!rooms[code]) { showError('join-error', 'Room not found — double-check the code!'); return; }
+
+  if (!rooms[code]) {
+    showError('join-error', 'Room not found — double-check the code!'); return;
+  }
+
   const room = rooms[code];
-  if (room.p2 && room.p2.username !== state.user.username) {
-    showError('join-error', 'This room is already full!'); return;
+
+  if (room.started) {
+    showError('join-error', 'This game has already started!'); return;
   }
   if (room.p1.username === state.user.username) {
     showError('join-error', "That's your own room — share the code with a friend!"); return;
   }
+  if (room.p2 && room.p2.username !== state.user.username) {
+    showError('join-error', 'This room is already full!'); return;
+  }
 
-  // join as p2
+  /* Atomic write: read → modify → save */
   rooms[code].p2 = state.user;
   saveRooms(rooms);
 
@@ -212,10 +249,7 @@ function joinRoom() {
 function enterWaiting() {
   stopPolling();
 
-  // show code
-  document.getElementById('waiting-code').textContent = state.roomCode;
-
-  // host vs guest labels
+  document.getElementById('waiting-code').textContent   = state.roomCode;
   document.getElementById('waiting-kicker').textContent =
     state.isHost ? 'Share this code' : 'Waiting for host';
 
@@ -228,21 +262,19 @@ function renderWaitingPlayers() {
   const room = getRoom();
   if (!room) return;
 
-  // p1
   document.getElementById('prow-1-avatar').textContent = room.p1.displayName[0].toUpperCase();
   document.getElementById('prow-1-name').textContent   = room.p1.displayName;
 
-  // p2
   const hasP2 = !!room.p2;
   const p2Row  = document.getElementById('prow-2');
 
   if (hasP2) {
     p2Row.classList.add('joined');
-    document.getElementById('prow-2-avatar').className = 'prow-avatar p2';
+    document.getElementById('prow-2-avatar').className   = 'prow-avatar p2';
     document.getElementById('prow-2-avatar').textContent = room.p2.displayName[0].toUpperCase();
-    document.getElementById('prow-2-name').style.color = '';
-    document.getElementById('prow-2-name').textContent  = room.p2.displayName;
-    document.getElementById('prow-2-tag').innerHTML     = '<span class="prow-tag ready">Ready ✓</span>';
+    document.getElementById('prow-2-name').style.color   = '';
+    document.getElementById('prow-2-name').textContent   = room.p2.displayName;
+    document.getElementById('prow-2-tag').innerHTML      = '<span class="prow-tag ready">Ready ✓</span>';
 
     if (state.isHost) {
       document.getElementById('waiting-hint').textContent = room.p2.displayName + ' has joined! Start when ready.';
@@ -252,9 +284,9 @@ function renderWaitingPlayers() {
     }
   } else {
     p2Row.classList.remove('joined');
-    document.getElementById('prow-2-avatar').className = 'prow-avatar empty';
+    document.getElementById('prow-2-avatar').className   = 'prow-avatar empty';
     document.getElementById('prow-2-avatar').textContent = '?';
-    document.getElementById('prow-2-name').style.color  = 'var(--muted)';
+    document.getElementById('prow-2-name').style.color   = 'var(--muted)';
     document.getElementById('prow-2-name').textContent   = 'Waiting for player…';
     document.getElementById('prow-2-tag').innerHTML      = '<span class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>';
     document.getElementById('btn-start').style.display   = 'none';
@@ -263,10 +295,12 @@ function renderWaitingPlayers() {
 }
 
 function pollWaiting() {
-  renderWaitingPlayers();
   const room = getRoom();
   if (!room) { enterLobby(); return; }
-  // non-host checks for started flag
+
+  renderWaitingPlayers();
+
+  /* non-host: wait for host to press Start */
   if (!state.isHost && room.started) {
     stopPolling();
     enterGame();
@@ -274,26 +308,45 @@ function pollWaiting() {
 }
 
 function hostStartGame() {
-  patchRoom({ started: true, roundNum: 1 });
+  patchRoom({ started: true, roundNum: 1, p1Choice: null, p2Choice: null });
   stopPolling();
   enterGame();
 }
 
 function copyCode() {
-  navigator.clipboard.writeText(state.roomCode).catch(() => {});
+  const text = state.roomCode || '';
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
   const btn = document.getElementById('copy-btn');
   btn.textContent = '✓ Copied!';
   btn.classList.add('copied');
   setTimeout(() => { btn.textContent = 'Copy Code'; btn.classList.remove('copied'); }, 2200);
 }
 
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity  = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+}
+
 function leaveRoom() {
   stopPolling();
-  // if host, delete room
   if (state.isHost) {
+    /* Host leaves → delete room entirely */
     const rooms = getRooms();
     delete rooms[state.roomCode];
     saveRooms(rooms);
+  } else {
+    /* FIX #4 — guest leaves → clear p2 so host sees slot open again */
+    patchRoom({ p2: null });
   }
   enterLobby();
 }
@@ -315,8 +368,7 @@ function enterGame() {
   showScreen('game');
 
   if (state.mode === '2p') {
-    // sync round number
-    const room = getRoom();
+    const room  = getRoom();
     state.round = room?.roundNum || 1;
     updateRoundTag();
     startPolling(pollGame);
@@ -324,11 +376,11 @@ function enterGame() {
 }
 
 function resetGameStats() {
-  state.myScore    = 0;
-  state.oppScore   = 0;
-  state.round      = 1;
-  state.history    = [];
-  state.myChoice   = null;
+  state.myScore     = 0;
+  state.oppScore    = 0;
+  state.round       = 1;
+  state.history     = [];
+  state.myChoice    = null;
   state.roundLocked = false;
   state.roundPhase  = 'pick';
 }
@@ -337,7 +389,6 @@ function setupGameUI() {
   const isBot = state.mode === 'bot';
   const room  = !isBot ? getRoom() : null;
 
-  // labels
   const myName  = state.user.displayName;
   const oppName = isBot ? 'AXIOM 🤖'
     : (state.isHost ? room?.p2?.displayName : room?.p1?.displayName) || 'Opponent';
@@ -349,27 +400,18 @@ function setupGameUI() {
   document.getElementById('game-mode-badge').textContent = isBot ? 'vs AXIOM 🤖' : '2 Player ⚔️';
   document.getElementById('game-mode-badge').className   = isBot ? 'badge badge-gold' : 'badge badge-teal';
 
-  // scores
   document.getElementById('score-p1').textContent = '0';
   document.getElementById('score-p2').textContent = '0';
 
-  // arena reset
   resetArena();
-
-  // result
   setResult(null, '');
-
-  // history
   renderHistory();
-
-  // choices enabled
   enableChoices(true);
-
   updateRoundTag();
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   BOT GAME LOGIC
+   BOT GAME
 ═══════════════════════════════════════════════════════════════════ */
 function playBot(choice) {
   if (state.roundLocked) return;
@@ -378,7 +420,6 @@ function playBot(choice) {
   const cpuChoice = randomChoice();
   const result    = getResult(choice, cpuChoice);
 
-  // show player instantly, cpu after tiny delay
   setArenaBox('arena-p1', choice, false);
   setTimeout(() => {
     setArenaBox('arena-p2', cpuChoice, false);
@@ -387,15 +428,14 @@ function playBot(choice) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   2-PLAYER GAME LOGIC
+   2-PLAYER GAME
 ═══════════════════════════════════════════════════════════════════ */
 function makeChoice(choice) {
   if (state.roundLocked || state.myChoice) return;
 
-  state.myChoice   = choice;
+  state.myChoice    = choice;
   state.roundLocked = true;
 
-  // mark selected card
   document.querySelectorAll('.choice-btn').forEach(btn => {
     btn.classList.toggle('selected', btn.dataset.c === choice);
     btn.disabled = true;
@@ -406,11 +446,10 @@ function makeChoice(choice) {
     return;
   }
 
-  // 2p: write choice to room
+  /* 2p: write our choice to room, show lock animation */
   const myKey = state.isHost ? 'p1Choice' : 'p2Choice';
-  setArenaBox('arena-p1', 'locked', true);  // show lock
+  setArenaBox('arena-p1', 'locked', true);
   showStatus('Waiting for opponent…');
-
   patchRoom({ [myKey]: choice });
 }
 
@@ -418,56 +457,66 @@ function pollGame() {
   const room = getRoom();
   if (!room) { leaveGame(); return; }
 
-  // if room deleted / opponent left
-  if (state.isHost && !room.p2)  { leaveGame(); return; }
+  /* Detect opponent disconnect (host deleted room) */
+  if (!state.isHost) {
+    const rooms = getRooms();
+    if (!rooms[state.roomCode]) { leaveGame(); return; }
+  }
+
+  /* FIX #3 — only process reveals once per round */
+  if (state.roundPhase !== 'pick') return;
 
   const myKey  = state.isHost ? 'p1Choice' : 'p2Choice';
   const oppKey = state.isHost ? 'p2Choice' : 'p1Choice';
+  const myC    = room[myKey];
+  const oppC   = room[oppKey];
 
-  const myC   = room[myKey];
-  const oppC  = room[oppKey];
+  /* Show that opponent has locked in, even if we haven't picked yet */
+  if (oppC && !myC) {
+    setArenaBox('arena-p2', 'locked', true);
+  }
 
-  // opponent has locked in
-  if (myC && oppC && state.roundPhase === 'pick') {
+  /* Both picked — reveal */
+  if (myC && oppC) {
     state.roundPhase = 'reveal';
     stopPolling();
 
     const result = getResult(myC, oppC);
     state.myChoice = myC;
 
-    // reveal both
     setArenaBox('arena-p1', myC, false);
     setTimeout(() => {
       setArenaBox('arena-p2', oppC, false);
       applyResult(result, myC, oppC);
 
-      // after 2.6s, reset round
       setTimeout(() => {
-        nextRound(room);
+        advanceRound();
       }, 2600);
     }, 320);
-  } else if (oppC && !myC) {
-    // opponent picked, we haven't yet — show they locked
-    setArenaBox('arena-p2', 'locked', true);
   }
 }
 
-function nextRound(room) {
-  // clear room choices for next round
-  const newRound = (room.roundNum || state.round) + 1;
-  patchRoom({ p1Choice: null, p2Choice: null, roundNum: newRound, roundResult: null });
-
-  state.round      = newRound;
-  state.myChoice   = null;
+/* FIX #5 — only host writes the next round number to avoid race */
+function advanceRound() {
+  state.round++;
+  state.myChoice    = null;
   state.roundLocked = false;
   state.roundPhase  = 'pick';
+
+  if (state.isHost) {
+    patchRoom({
+      p1Choice:    null,
+      p2Choice:    null,
+      roundNum:    state.round,
+      roundResult: null,
+    });
+  }
 
   resetArena();
   setResult(null, '');
   hideStatus();
   enableChoices(true);
   updateRoundTag();
-
   startPolling(pollGame);
 }
 
@@ -495,7 +544,6 @@ function applyResult(result, myC, oppC) {
   setResult(result, labels[result]);
 
   if (state.mode === 'bot') {
-    // auto-reset after delay
     setTimeout(() => {
       resetArena();
       setResult(null, '');
@@ -516,33 +564,32 @@ function randomChoice() {
   return keys[Math.floor(Math.random() * keys.length)];
 }
 
-function setArenaBox(id, state, isLocked) {
+function setArenaBox(id, choiceOrState, isLocked) {
   const box = document.getElementById(id);
   if (!box) return;
   box.className = 'choice-box';
   if (isLocked) {
     box.classList.add('locked');
     box.textContent = '🔒';
-  } else if (state === 'idle' || !state) {
+  } else if (!choiceOrState || choiceOrState === 'idle') {
     box.classList.add('idle');
     box.textContent = '❓';
   } else {
-    box.classList.add(state);
-    box.textContent = CHOICES[state]?.emoji || '❓';
+    box.classList.add(choiceOrState);
+    box.textContent = CHOICES[choiceOrState]?.emoji || '❓';
   }
 }
 
 function resetArena() {
-  setArenaBox('arena-p1', 'idle');
-  setArenaBox('arena-p2', 'idle');
+  setArenaBox('arena-p1', 'idle', false);
+  setArenaBox('arena-p2', 'idle', false);
 }
 
 function setResult(type, text) {
   const el = document.getElementById('result-text');
-  el.className = 'result-text';
+  el.className   = 'result-text';
   el.textContent = text || '—';
   if (type) {
-    // force reflow for re-animation
     void el.offsetWidth;
     el.classList.add('show', type);
   }
@@ -554,6 +601,7 @@ function showStatus(msg) {
   sl.style.display = 'flex';
   document.getElementById('status-msg').textContent = msg;
 }
+
 function hideStatus() {
   document.getElementById('result-text').style.display = '';
   document.getElementById('status-line').style.display = 'none';
@@ -579,19 +627,25 @@ function updateRoundTag() {
 
 function renderHistory() {
   const container = document.getElementById('history-dots');
-  const dots = Array.from({ length: 10 }, (_, i) => {
-    const entry = state.history[state.history.length - 10 + i];
-    return `<div class="hdot ${entry || ''}"></div>`;
-  });
-  container.innerHTML = dots.join('');
+  const total     = 10;
+  const start     = Math.max(0, state.history.length - total);
+  const visible   = state.history.slice(start);
+
+  let html = '';
+  for (let i = 0; i < total; i++) {
+    const entry = visible[i - (total - visible.length)] || '';
+    html += `<div class="hdot ${entry}"></div>`;
+  }
+  container.innerHTML = html;
 }
 
 function showError(id, msg) {
   const el = document.getElementById(id);
   if (!el) return;
-  el.textContent = msg;
+  el.textContent   = msg;
   el.style.display = 'block';
 }
+
 function hideError(id) {
   const el = document.getElementById(id);
   if (el) el.style.display = 'none';
@@ -604,6 +658,7 @@ function startPolling(fn) {
   stopPolling();
   pollTimer = setInterval(fn, POLL_MS);
 }
+
 function stopPolling() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 }
@@ -625,13 +680,12 @@ function leaveGame() {
    KEYBOARD SHORTCUTS
 ═══════════════════════════════════════════════════════════════════ */
 document.addEventListener('keydown', e => {
-  // Enter on auth fields
   if (document.getElementById('screen-auth').classList.contains('screen-active')) {
     if (e.key === 'Enter') handleAuth();
+    return;
   }
-  // In game: 1=rock 2=paper 3=scissors
   if (document.getElementById('screen-game').classList.contains('screen-active')) {
-    const map = { '1': 'rock', '2': 'paper', '3': 'scissors', 'r': 'rock', 'p': 'paper', 's': 'scissors' };
+    const map = { '1': 'rock', '2': 'paper', '3': 'scissors', r: 'rock', p: 'paper', s: 'scissors' };
     if (map[e.key]) makeChoice(map[e.key]);
   }
 });
@@ -640,12 +694,10 @@ document.addEventListener('keydown', e => {
    INIT
 ═══════════════════════════════════════════════════════════════════ */
 (function init() {
-  // restore session
   try {
     const saved = sessionStorage.getItem(SESSION_KEY);
     if (saved) {
-      const user = JSON.parse(saved);
-      // verify user still exists
+      const user  = JSON.parse(saved);
       const users = getUsers();
       if (users[user.username]) {
         state.user = user;

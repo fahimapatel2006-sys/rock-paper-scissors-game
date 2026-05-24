@@ -84,7 +84,7 @@
     }
 
     /* ══════════════════════════════════════════════
-       SCREENS  (shown/hidden via .screen-active)
+       SCREENS
     ══════════════════════════════════════════════ */
     .screen {
       display: none;
@@ -125,20 +125,10 @@
       from { opacity:0; transform:scale(.88); }
       to   { opacity:1; transform:scale(1); }
     }
-    @keyframes slideLeft {
-      from { opacity:0; transform:translateX(30px); }
-      to   { opacity:1; transform:none; }
-    }
-    @keyframes slideRight {
-      from { opacity:0; transform:translateX(-30px); }
-      to   { opacity:1; transform:none; }
-    }
 
     /* ══════════════════════════════════════════════
        SHARED COMPONENTS
     ══════════════════════════════════════════════ */
-
-    /* glass card */
     .card {
       background: var(--surface);
       backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
@@ -146,7 +136,6 @@
       border-radius: var(--radius-lg);
     }
 
-    /* pill badge */
     .badge {
       display: inline-flex; align-items: center; gap: .4rem;
       font-size: .62rem; letter-spacing: .18em; text-transform: uppercase;
@@ -156,7 +145,6 @@
     .badge-teal   { color: var(--paper);    background: rgba(94,234,212,.08); border: 1px solid rgba(94,234,212,.22); }
     .badge-pink   { color: var(--rock);     background: rgba(255,107,157,.08); border: 1px solid rgba(255,107,157,.22); }
 
-    /* kicker + title */
     .kicker {
       font-size: .62rem; letter-spacing: .26em; text-transform: uppercase;
       color: var(--muted-lt); margin-bottom: .45rem;
@@ -169,7 +157,6 @@
       -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
     }
 
-    /* form fields */
     .field { display: flex; flex-direction: column; gap: .38rem; }
     .field label { font-size: .62rem; letter-spacing: .2em; text-transform: uppercase; color: var(--muted-lt); }
     .field input {
@@ -187,7 +174,6 @@
     }
     .field input::placeholder { color: var(--muted); }
 
-    /* error pill */
     .error-msg {
       font-size: .78rem; color: var(--danger);
       background: rgba(255,95,109,.08); border: 1px solid rgba(255,95,109,.2);
@@ -195,7 +181,6 @@
       text-align: center; animation: fadeDown .25s ease;
     }
 
-    /* buttons */
     .btn {
       display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
       font-family: 'DM Sans', sans-serif; font-weight: 700;
@@ -239,7 +224,6 @@
     .btn-sm { padding: .55rem 1.2rem; font-size: .7rem; }
     .btn-lg { padding: 1rem 2.8rem; font-size: .85rem; }
 
-    /* auth tabs */
     .tab-row {
       display: flex; gap: .4rem;
       background: rgba(0,0,0,.22); border-radius: 14px; padding: .3rem;
@@ -254,7 +238,6 @@
     }
     .tab-btn.active { background: rgba(255,255,255,.09); color: var(--text); }
 
-    /* waiting dots */
     .dots { display: flex; gap: .38rem; align-items: center; }
     .dot {
       width: 7px; height: 7px; border-radius: 50%;
@@ -417,7 +400,6 @@
 
     .game-wrap { width: min(980px, 96vw); display: flex; flex-direction: column; align-items: center; gap: 1.6rem; }
 
-    /* top bar */
     .game-topbar {
       width: 100%;
       display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
@@ -430,7 +412,6 @@
       -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
     }
 
-    /* scoreboard */
     .scoreboard {
       display: flex; align-items: center; gap: 1.4rem;
       padding: 1.1rem 2.4rem;
@@ -449,12 +430,10 @@
     .score-sep { width: 1px; height: 50px; background: var(--border); }
     .vs-lbl { font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem; color: var(--muted); letter-spacing: .1em; }
 
-    /* round counter */
     .round-tag {
       font-size: .62rem; letter-spacing: .2em; text-transform: uppercase; color: var(--muted-lt);
     }
 
-    /* arena */
     .arena {
       width: 100%;
       display: grid; grid-template-columns: 1fr 80px 1fr;
@@ -481,7 +460,6 @@
     .choice-box.paper    { border-color: var(--paper);   box-shadow: 0 0 44px var(--glow-p); animation: popIn .45s ease both; }
     .choice-box.scissors { border-color: var(--scissors);box-shadow: 0 0 44px var(--glow-s); animation: popIn .45s ease both; }
 
-    /* shimmer on locked */
     .choice-box.locked::after {
       content: '';
       position: absolute; inset: 0;
@@ -496,7 +474,6 @@
     .arena-dot:nth-child(3) { animation-delay: .22s; }
     .arena-dot:nth-child(4) { animation-delay: .44s; }
 
-    /* result banner */
     .result-banner {
       min-height: 52px;
       display: flex; align-items: center; justify-content: center;
@@ -518,7 +495,6 @@
       animation: fadeDown .3s ease both;
     }
 
-    /* choice cards */
     .choices-row { display: flex; gap: 1.1rem; }
 
     .choice-btn {
@@ -554,7 +530,6 @@
     .choice-btn[data-c="paper"]:hover:not(:disabled) .choice-lbl    { color: var(--paper); }
     .choice-btn[data-c="scissors"]:hover:not(:disabled) .choice-lbl { color: var(--scissors); }
 
-    /* history */
     .history-row {
       width: 100%;
       display: flex; flex-direction: column; align-items: center; gap: .65rem;
@@ -571,10 +546,6 @@
     .hdot.draw { background: var(--scissors); border-color: var(--scissors); }
 
     /* ══════════════════════════════════════════════
-       BOT GAME — same structure reused
-    ══════════════════════════════════════════════ */
-
-    /* ══════════════════════════════════════════════
        RESPONSIVE
     ══════════════════════════════════════════════ */
     @media (max-width: 620px) {
@@ -589,7 +560,6 @@
 </head>
 <body>
 
-  <!-- Bg decoration -->
   <div class="blob blob-1"></div>
   <div class="blob blob-2"></div>
   <div class="blob blob-3"></div>
@@ -629,7 +599,7 @@
           Accounts are saved locally on this device.
         </p>
       </div>
-    </div><!-- /screen-auth -->
+    </div>
 
 
     <!-- ══════════════════════════════════════════
@@ -656,9 +626,7 @@
           </div>
         </div>
 
-        <!-- mode cards -->
         <div class="lobby-grid">
-
           <div class="card lobby-card">
             <div class="lcard-icon">🤖</div>
             <div>
@@ -676,10 +644,8 @@
             </div>
             <button class="btn btn-primary btn-sm" onclick="createRoom()">Create Room</button>
           </div>
-
         </div>
 
-        <!-- join room -->
         <div class="card lobby-card" style="width:100%;">
           <div class="lcard-icon">🚪</div>
           <div>
@@ -688,7 +654,7 @@
           </div>
           <div class="join-row">
             <input class="join-input" id="join-code" maxlength="4" placeholder="ABCD"
-                   oninput="this.value=this.value.toUpperCase()"
+                   oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')"
                    onkeydown="if(event.key==='Enter')joinRoom()" />
             <button class="btn btn-primary" onclick="joinRoom()">Join →</button>
           </div>
@@ -696,7 +662,7 @@
         </div>
 
       </div>
-    </div><!-- /screen-lobby -->
+    </div>
 
 
     <!-- ══════════════════════════════════════════
@@ -721,7 +687,6 @@
           <button class="copy-btn" id="copy-btn" onclick="copyCode()">Copy Code</button>
         </div>
 
-        <!-- player slots -->
         <div class="players-list">
           <div style="font-size:.6rem;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);text-align:center;margin-bottom:.1rem;">Players</div>
           <div class="player-row joined" id="prow-1">
@@ -749,16 +714,15 @@
         </div>
 
       </div>
-    </div><!-- /screen-waiting -->
+    </div>
 
 
     <!-- ══════════════════════════════════════════
-         SCREEN: GAME  (2-player + bot)
+         SCREEN: GAME
     ══════════════════════════════════════════ -->
     <div id="screen-game" class="screen">
       <div class="game-wrap">
 
-        <!-- top bar -->
         <div class="game-topbar">
           <div class="game-topbar-left">
             <div class="game-logo">Rock Paper Scissors</div>
@@ -770,7 +734,6 @@
           </div>
         </div>
 
-        <!-- scoreboard -->
         <div class="card scoreboard">
           <div class="score-col p1">
             <div class="score-lbl" id="score-p1-lbl">You</div>
@@ -785,7 +748,6 @@
           </div>
         </div>
 
-        <!-- arena -->
         <div class="arena">
           <div class="arena-side">
             <div class="arena-side-lbl" id="arena-p1-lbl">Your Pick</div>
@@ -803,7 +765,6 @@
           </div>
         </div>
 
-        <!-- result / status -->
         <div class="result-banner">
           <div class="result-text" id="result-text">—</div>
           <div class="status-line" id="status-line" style="display:none;">
@@ -812,12 +773,11 @@
           </div>
         </div>
 
-        <!-- choices -->
         <div class="choices-row" id="choices-row">
-          <button class="choice-btn" data-c="rock"     onclick="makeChoice('rock')"    >
+          <button class="choice-btn" data-c="rock"     onclick="makeChoice('rock')">
             <div class="choice-btn-inner"><span class="choice-emoji">🪨</span><span class="choice-lbl">Rock</span></div>
           </button>
-          <button class="choice-btn" data-c="paper"    onclick="makeChoice('paper')"   >
+          <button class="choice-btn" data-c="paper"    onclick="makeChoice('paper')">
             <div class="choice-btn-inner"><span class="choice-emoji">📄</span><span class="choice-lbl">Paper</span></div>
           </button>
           <button class="choice-btn" data-c="scissors" onclick="makeChoice('scissors')">
@@ -825,18 +785,15 @@
           </button>
         </div>
 
-        <!-- history -->
         <div class="history-row">
           <div class="history-lbl">Round History</div>
-          <div class="history-dots" id="history-dots">
-            <!-- 10 blank dots rendered by JS -->
-          </div>
+          <div class="history-dots" id="history-dots"></div>
         </div>
 
       </div>
-    </div><!-- /screen-game -->
+    </div>
 
-  </div><!-- /app -->
+  </div>
 
   <script src="script.js"></script>
 </body>
