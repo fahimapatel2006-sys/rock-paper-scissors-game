@@ -1,562 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Rock Paper Scissors</title>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,300&display=swap" rel="stylesheet"/>
-  <style>
-    /* ══════════════════════════════════════════════
-       RESET & TOKENS
-    ══════════════════════════════════════════════ */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --rock:       #ff6b9d;
-      --paper:      #5eead4;
-      --scissors:   #fbbf24;
-      --p1-color:   #5eead4;
-      --p2-color:   #ff6b9d;
-      --text:       #f0f0f8;
-      --muted:      #5a5a80;
-      --muted-lt:   #8888aa;
-      --surface:    rgba(255,255,255,0.045);
-      --border:     rgba(255,255,255,0.08);
-      --border-lt:  rgba(255,255,255,0.14);
-      --glow-r:     rgba(255,107,157,0.4);
-      --glow-p:     rgba(94,234,212,0.4);
-      --glow-s:     rgba(251,191,36,0.4);
-      --danger:     #ff5f6d;
-      --bg:         #06040e;
-      --radius-lg:  24px;
-      --radius-md:  16px;
-      --radius-sm:  10px;
-    }
-
-    html, body {
-      min-height: 100vh;
-      background:
-        radial-gradient(ellipse 85% 60% at 10% -5%,  #2d0a52 0%, transparent 52%),
-        radial-gradient(ellipse 65% 50% at 88% 108%,  #0c1e50 0%, transparent 52%),
-        radial-gradient(ellipse 50% 45% at 52% 50%,   #18082e 0%, transparent 62%),
-        var(--bg);
-      color: var(--text);
-      font-family: 'DM Sans', sans-serif;
-      overflow-x: hidden;
-    }
-
-    /* grid drift */
-    body::before {
-      content: '';
-      position: fixed; inset: 0;
-      background-image:
-        linear-gradient(rgba(255,255,255,.02) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,.02) 1px, transparent 1px);
-      background-size: 52px 52px;
-      animation: gridDrift 22s linear infinite;
-      pointer-events: none; z-index: 0;
-    }
-    @keyframes gridDrift {
-      from { background-position: 0 0; }
-      to   { background-position: 52px 52px; }
-    }
-
-    /* blobs */
-    .blob {
-      position: fixed; border-radius: 50%;
-      filter: blur(130px); opacity: .32;
-      pointer-events: none; z-index: 0;
-    }
-    .blob-1 { width:520px; height:520px; background:var(--rock);    top:-180px; left:-180px; animation:bf1 13s ease-in-out infinite; }
-    .blob-2 { width:420px; height:420px; background:var(--paper);   bottom:-120px; right:-120px; animation:bf2 16s ease-in-out infinite; }
-    .blob-3 { width:280px; height:280px; background:var(--scissors); top:42%; left:50%; transform:translate(-50%,-50%); animation:bf3 10s ease-in-out infinite; }
-    @keyframes bf1 { 0%,100%{transform:translate(0,0)}  50%{transform:translate(45px,32px)} }
-    @keyframes bf2 { 0%,100%{transform:translate(0,0)}  50%{transform:translate(-35px,-42px)} }
-    @keyframes bf3 { 0%,100%{transform:translate(-50%,-50%)} 50%{transform:translate(-50%,-42%)} }
-
-    /* ══════════════════════════════════════════════
-       LAYOUT SHELL
-    ══════════════════════════════════════════════ */
-    #app {
-      position: relative; z-index: 1;
-      min-height: 100vh;
-      display: flex; flex-direction: column; align-items: center;
-    }
-
-    /* ══════════════════════════════════════════════
-       SCREENS
-    ══════════════════════════════════════════════ */
-    .screen {
-      display: none;
-      width: 100%; flex-direction: column; align-items: center;
-    }
-    .screen.screen-active { display: flex; }
-
-    /* ══════════════════════════════════════════════
-       ANIMATIONS
-    ══════════════════════════════════════════════ */
-    @keyframes fadeDown {
-      from { opacity:0; transform:translateY(-22px); }
-      to   { opacity:1; transform:none; }
-    }
-    @keyframes fadeUp {
-      from { opacity:0; transform:translateY(22px); }
-      to   { opacity:1; transform:none; }
-    }
-    @keyframes popIn {
-      0%   { opacity:0; transform:scale(.7) rotate(-6deg); }
-      65%  { transform:scale(1.08) rotate(2deg); }
-      85%  { transform:scale(.97); }
-      100% { opacity:1; transform:scale(1) rotate(0); }
-    }
-    @keyframes idlePulse {
-      0%,100% { box-shadow:0 0 0 transparent; }
-      50%     { box-shadow:0 0 28px rgba(255,255,255,.07); }
-    }
-    @keyframes dotBlink {
-      0%,80%,100% { opacity:.18; }
-      40%         { opacity:1; }
-    }
-    @keyframes shimmer {
-      0%   { background-position: -200% center; }
-      100% { background-position:  200% center; }
-    }
-    @keyframes scaleIn {
-      from { opacity:0; transform:scale(.88); }
-      to   { opacity:1; transform:scale(1); }
-    }
-
-    /* ══════════════════════════════════════════════
-       SHARED COMPONENTS
-    ══════════════════════════════════════════════ */
-    .card {
-      background: var(--surface);
-      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-    }
-
-    .badge {
-      display: inline-flex; align-items: center; gap: .4rem;
-      font-size: .62rem; letter-spacing: .18em; text-transform: uppercase;
-      padding: .3rem .85rem; border-radius: 50px;
-    }
-    .badge-gold   { color: var(--scissors); background: rgba(251,191,36,.08); border: 1px solid rgba(251,191,36,.22); }
-    .badge-teal   { color: var(--paper);    background: rgba(94,234,212,.08); border: 1px solid rgba(94,234,212,.22); }
-    .badge-pink   { color: var(--rock);     background: rgba(255,107,157,.08); border: 1px solid rgba(255,107,157,.22); }
-
-    .kicker {
-      font-size: .62rem; letter-spacing: .26em; text-transform: uppercase;
-      color: var(--muted-lt); margin-bottom: .45rem;
-    }
-    .display-title {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: clamp(3rem,9vw,6rem);
-      line-height: .95; letter-spacing: .04em;
-      background: linear-gradient(135deg, var(--rock) 0%, var(--paper) 55%, var(--scissors) 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-    }
-
-    .field { display: flex; flex-direction: column; gap: .38rem; }
-    .field label { font-size: .62rem; letter-spacing: .2em; text-transform: uppercase; color: var(--muted-lt); }
-    .field input {
-      background: rgba(0,0,0,.28);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: .82rem 1rem;
-      font-family: 'DM Sans', sans-serif; font-size: .9rem;
-      color: var(--text); outline: none;
-      transition: border-color .2s, box-shadow .2s;
-    }
-    .field input:focus {
-      border-color: rgba(94,234,212,.5);
-      box-shadow: 0 0 0 3px rgba(94,234,212,.09);
-    }
-    .field input::placeholder { color: var(--muted); }
-
-    .error-msg {
-      font-size: .78rem; color: var(--danger);
-      background: rgba(255,95,109,.08); border: 1px solid rgba(255,95,109,.2);
-      border-radius: var(--radius-sm); padding: .65rem 1rem;
-      text-align: center; animation: fadeDown .25s ease;
-    }
-
-    .btn {
-      display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
-      font-family: 'DM Sans', sans-serif; font-weight: 700;
-      font-size: .78rem; letter-spacing: .14em; text-transform: uppercase;
-      border: none; border-radius: 50px; cursor: pointer;
-      transition: transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s, opacity .2s;
-      padding: .8rem 2rem;
-    }
-    .btn:active   { transform: scale(.95) !important; }
-    .btn:disabled { opacity: .45; cursor: not-allowed; transform: none !important; }
-
-    .btn-primary {
-      background: linear-gradient(135deg, var(--paper) 0%, #38bdf8 100%);
-      color: #05031a;
-      box-shadow: 0 4px 24px rgba(94,234,212,.22);
-    }
-    .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 10px 36px rgba(94,234,212,.38); }
-
-    .btn-accent {
-      background: linear-gradient(135deg, var(--rock) 0%, #ff9f6b 100%);
-      color: #05031a;
-      box-shadow: 0 4px 24px rgba(255,107,157,.22);
-    }
-    .btn-accent:hover { transform: translateY(-3px); box-shadow: 0 10px 36px var(--glow-r); }
-
-    .btn-ghost {
-      background: transparent;
-      color: var(--muted-lt);
-      border: 1px solid var(--border-lt);
-    }
-    .btn-ghost:hover { border-color: rgba(255,255,255,.38); color: var(--text); transform: translateY(-2px); }
-
-    .btn-danger {
-      background: transparent;
-      color: var(--danger);
-      border: 1px solid rgba(255,95,109,.28);
-      font-size: .7rem;
-    }
-    .btn-danger:hover { background: rgba(255,95,109,.08); transform: translateY(-1px); }
-
-    .btn-sm { padding: .55rem 1.2rem; font-size: .7rem; }
-    .btn-lg { padding: 1rem 2.8rem; font-size: .85rem; }
-
-    .tab-row {
-      display: flex; gap: .4rem;
-      background: rgba(0,0,0,.22); border-radius: 14px; padding: .3rem;
-    }
-    .tab-btn {
-      flex: 1; padding: .55rem;
-      font-family: 'DM Sans', sans-serif; font-size: .72rem;
-      font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
-      color: var(--muted); background: transparent;
-      border: none; border-radius: 10px; cursor: pointer;
-      transition: background .2s, color .2s;
-    }
-    .tab-btn.active { background: rgba(255,255,255,.09); color: var(--text); }
-
-    .dots { display: flex; gap: .38rem; align-items: center; }
-    .dot {
-      width: 7px; height: 7px; border-radius: 50%;
-      background: var(--muted);
-      animation: dotBlink 1.5s ease-in-out infinite;
-    }
-    .dot:nth-child(2) { animation-delay: .22s; }
-    .dot:nth-child(3) { animation-delay: .44s; }
-
-    /* ══════════════════════════════════════════════
-       AUTH SCREEN
-    ══════════════════════════════════════════════ */
-    #screen-auth {
-      padding: 3.5rem 0 5rem;
-      gap: 2.2rem;
-      animation: fadeDown .65s ease both;
-    }
-
-    .auth-wrap {
-      width: min(420px, 92vw);
-      display: flex; flex-direction: column; gap: 2rem;
-    }
-
-    .auth-card {
-      padding: 2rem 2.2rem 2.4rem;
-      display: flex; flex-direction: column; gap: 1.4rem;
-    }
-
-    /* ══════════════════════════════════════════════
-       LOBBY SCREEN
-    ══════════════════════════════════════════════ */
-    #screen-lobby {
-      padding: 2.5rem 0 5rem;
-      gap: 2rem;
-      animation: scaleIn .55s ease both;
-    }
-
-    .lobby-wrap { width: min(580px, 94vw); display: flex; flex-direction: column; gap: 2rem; }
-
-    .lobby-top {
-      display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-    }
-
-    .user-chip {
-      display: flex; align-items: center; gap: .6rem;
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 50px; padding: .38rem .9rem .38rem .4rem;
-    }
-    .user-chip .avatar {
-      width: 28px; height: 28px; border-radius: 50%;
-      background: linear-gradient(135deg, var(--paper), #38bdf8);
-      display: flex; align-items: center; justify-content: center;
-      font-size: .72rem; font-weight: 800; color: #05031a;
-      flex-shrink: 0;
-    }
-    .user-chip span { font-size: .78rem; color: var(--muted-lt); }
-    .user-chip strong { color: var(--text); }
-
-    .lobby-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-
-    .lobby-card {
-      padding: 1.6rem;
-      display: flex; flex-direction: column; gap: 1rem;
-      transition: border-color .2s, transform .2s;
-    }
-    .lobby-card:hover { border-color: var(--border-lt); transform: translateY(-3px); }
-
-    .lcard-icon { font-size: 2.2rem; }
-    .lcard-title {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 1.5rem; letter-spacing: .04em; color: var(--text);
-    }
-    .lcard-desc { font-size: .75rem; color: var(--muted-lt); line-height: 1.55; }
-
-    .join-row { display: flex; gap: .6rem; width: 100%; }
-    .join-input {
-      flex: 1;
-      background: rgba(0,0,0,.28);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: .8rem 1rem;
-      font-family: 'Bebas Neue', sans-serif; font-size: 1.7rem; letter-spacing: .3em;
-      color: var(--text); outline: none; text-align: center; text-transform: uppercase;
-      transition: border-color .2s, box-shadow .2s;
-    }
-    .join-input:focus { border-color: rgba(94,234,212,.5); box-shadow: 0 0 0 3px rgba(94,234,212,.09); }
-    .join-input::placeholder { color: var(--muted); font-size: 1rem; letter-spacing: .1em; font-family: 'DM Sans',sans-serif; }
-
-    /* ══════════════════════════════════════════════
-       WAITING ROOM SCREEN
-    ══════════════════════════════════════════════ */
-    #screen-waiting {
-      padding: 2.5rem 0 5rem;
-      gap: 2rem;
-      animation: scaleIn .55s ease both;
-    }
-
-    .waiting-wrap { width: min(480px, 94vw); display: flex; flex-direction: column; gap: 2rem; align-items: center; }
-
-    .code-card {
-      width: 100%;
-      padding: 1.8rem;
-      text-align: center;
-      border: 2px dashed rgba(255,255,255,.13);
-      border-radius: var(--radius-lg);
-      background: rgba(255,255,255,.025);
-    }
-    .code-label { font-size: .6rem; letter-spacing: .26em; text-transform: uppercase; color: var(--muted-lt); margin-bottom: .6rem; }
-    .code-value {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 4.5rem; letter-spacing: .35em;
-      background: linear-gradient(135deg, var(--paper) 0%, var(--scissors) 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-      line-height: 1;
-    }
-    .code-hint { font-size: .72rem; color: var(--muted); margin-top: .5rem; }
-    .copy-btn {
-      margin-top: .9rem;
-      font-size: .68rem; letter-spacing: .16em; text-transform: uppercase;
-      color: var(--paper); background: rgba(94,234,212,.07);
-      border: 1px solid rgba(94,234,212,.22); border-radius: 8px;
-      padding: .48rem 1.1rem; cursor: pointer;
-      transition: background .2s, transform .2s;
-    }
-    .copy-btn:hover { background: rgba(94,234,212,.15); transform: translateY(-1px); }
-    .copy-btn.copied { color: var(--scissors); border-color: rgba(251,191,36,.3); background: rgba(251,191,36,.07); }
-
-    .players-list { width: 100%; display: flex; flex-direction: column; gap: .6rem; }
-    .player-row {
-      display: flex; align-items: center; gap: .85rem;
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 14px; padding: .8rem 1rem;
-      transition: border-color .2s;
-    }
-    .player-row.joined { border-color: rgba(94,234,212,.25); }
-
-    .prow-avatar {
-      width: 36px; height: 36px; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: .88rem; font-weight: 800; color: #05031a; flex-shrink: 0;
-    }
-    .prow-avatar.p1 { background: linear-gradient(135deg, var(--paper), #38bdf8); }
-    .prow-avatar.p2 { background: linear-gradient(135deg, var(--rock), #ff9f6b); }
-    .prow-avatar.empty { background: rgba(255,255,255,.07); color: var(--muted); font-size: 1rem; }
-
-    .prow-name { font-size: .9rem; font-weight: 500; }
-    .prow-tag { margin-left: auto; font-size: .62rem; letter-spacing: .14em; text-transform: uppercase; }
-    .prow-tag.ready   { color: var(--paper); }
-    .prow-tag.waiting { color: var(--muted); }
-    .prow-tag.host    { color: var(--scissors); }
-
-    /* ══════════════════════════════════════════════
-       GAME SCREEN
-    ══════════════════════════════════════════════ */
-    #screen-game {
-      padding: 2rem 0 4rem;
-      gap: 1.6rem;
-      animation: scaleIn .45s ease both;
-    }
-
-    .game-wrap { width: min(980px, 96vw); display: flex; flex-direction: column; align-items: center; gap: 1.6rem; }
-
-    .game-topbar {
-      width: 100%;
-      display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
-    }
-    .game-topbar-left { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; }
-    .game-logo {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: clamp(1.7rem,4vw,2.6rem); letter-spacing: .04em;
-      background: linear-gradient(135deg, var(--rock) 0%, var(--paper) 55%, var(--scissors) 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-    }
-
-    .scoreboard {
-      display: flex; align-items: center; gap: 1.4rem;
-      padding: 1.1rem 2.4rem;
-      animation: fadeDown .5s ease both;
-    }
-    .score-col { text-align: center; min-width: 80px; }
-    .score-lbl { font-size: .58rem; letter-spacing: .2em; text-transform: uppercase; color: var(--muted-lt); margin-bottom: .18rem; }
-    .score-val {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 3.2rem; line-height: 1;
-      transition: transform .2s;
-    }
-    .score-val.bump { animation: popIn .35s ease both; }
-    .score-col.p1 .score-val { color: var(--p1-color); }
-    .score-col.p2 .score-val { color: var(--p2-color); }
-    .score-sep { width: 1px; height: 50px; background: var(--border); }
-    .vs-lbl { font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem; color: var(--muted); letter-spacing: .1em; }
-
-    .round-tag {
-      font-size: .62rem; letter-spacing: .2em; text-transform: uppercase; color: var(--muted-lt);
-    }
-
-    .arena {
-      width: 100%;
-      display: grid; grid-template-columns: 1fr 80px 1fr;
-      align-items: center; gap: 1rem;
-    }
-    .arena-side { display: flex; flex-direction: column; align-items: center; gap: .8rem; }
-    .arena-side-lbl { font-size: .62rem; letter-spacing: .2em; text-transform: uppercase; color: var(--muted-lt); }
-
-    .choice-box {
-      width: 148px; height: 148px; border-radius: 28px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 4.2rem;
-      background: var(--surface); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-      border: 2px solid var(--border);
-      position: relative; overflow: hidden;
-      transition: border-color .35s, box-shadow .35s;
-    }
-    .choice-box.idle { animation: idlePulse 3.2s ease-in-out infinite; }
-    .choice-box.locked {
-      border-color: rgba(255,255,255,.22);
-      box-shadow: 0 0 28px rgba(255,255,255,.07);
-    }
-    .choice-box.rock     { border-color: var(--rock);    box-shadow: 0 0 44px var(--glow-r); animation: popIn .45s ease both; }
-    .choice-box.paper    { border-color: var(--paper);   box-shadow: 0 0 44px var(--glow-p); animation: popIn .45s ease both; }
-    .choice-box.scissors { border-color: var(--scissors);box-shadow: 0 0 44px var(--glow-s); animation: popIn .45s ease both; }
-
-    .choice-box.locked::after {
-      content: '';
-      position: absolute; inset: 0;
-      background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,.07) 50%, transparent 70%);
-      background-size: 200% 100%;
-      animation: shimmer 2.2s linear infinite;
-    }
-
-    .arena-mid { display: flex; flex-direction: column; align-items: center; gap: .4rem; }
-    .arena-vs { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--muted); letter-spacing: .1em; }
-    .arena-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--muted); animation: dotBlink 1.5s ease-in-out infinite; }
-    .arena-dot:nth-child(3) { animation-delay: .22s; }
-    .arena-dot:nth-child(4) { animation-delay: .44s; }
-
-    .result-banner {
-      min-height: 52px;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .result-text {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 2.4rem; letter-spacing: .18em;
-      opacity: 0; transform: scale(.75);
-      transition: opacity .3s, transform .3s;
-    }
-    .result-text.show { opacity: 1; transform: scale(1); }
-    .result-text.win  { color: var(--paper); }
-    .result-text.lose { color: var(--rock); }
-    .result-text.draw { color: var(--scissors); }
-
-    .status-line {
-      font-size: .75rem; color: var(--muted-lt);
-      display: flex; align-items: center; gap: .55rem;
-      animation: fadeDown .3s ease both;
-    }
-
-    .choices-row { display: flex; gap: 1.1rem; }
-
-    .choice-btn {
-      position: relative; cursor: pointer;
-      background: none; border: none; padding: 0; outline: none;
-    }
-    .choice-btn-inner {
-      width: 114px; height: 130px; border-radius: 22px;
-      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .5rem;
-      background: var(--surface); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-      border: 2px solid var(--border);
-      transition: transform .22s cubic-bezier(.34,1.56,.64,1), border-color .2s, box-shadow .2s;
-    }
-    .choice-btn:hover:not(:disabled) .choice-btn-inner   { transform: translateY(-9px) scale(1.06); }
-    .choice-btn:active:not(:disabled) .choice-btn-inner  { transform: translateY(-2px) scale(.97); }
-    .choice-btn:disabled .choice-btn-inner                { opacity: .38; cursor: not-allowed; }
-
-    .choice-btn[data-c="rock"]:hover:not(:disabled) .choice-btn-inner     { border-color: var(--rock);    box-shadow: 0 14px 40px var(--glow-r); }
-    .choice-btn[data-c="paper"]:hover:not(:disabled) .choice-btn-inner    { border-color: var(--paper);   box-shadow: 0 14px 40px var(--glow-p); }
-    .choice-btn[data-c="scissors"]:hover:not(:disabled) .choice-btn-inner { border-color: var(--scissors);box-shadow: 0 14px 40px var(--glow-s); }
-
-    .choice-btn.selected .choice-btn-inner { transform: translateY(-9px) scale(1.06); }
-    .choice-btn[data-c="rock"].selected .choice-btn-inner     { border-color: var(--rock);    box-shadow: 0 14px 40px var(--glow-r); }
-    .choice-btn[data-c="paper"].selected .choice-btn-inner    { border-color: var(--paper);   box-shadow: 0 14px 40px var(--glow-p); }
-    .choice-btn[data-c="scissors"].selected .choice-btn-inner { border-color: var(--scissors);box-shadow: 0 14px 40px var(--glow-s); }
-
-    .choice-emoji { font-size: 2.9rem; line-height: 1; }
-    .choice-lbl {
-      font-size: .64rem; letter-spacing: .15em; text-transform: uppercase;
-      color: var(--muted); font-weight: 500; transition: color .2s;
-    }
-    .choice-btn[data-c="rock"]:hover:not(:disabled) .choice-lbl     { color: var(--rock); }
-    .choice-btn[data-c="paper"]:hover:not(:disabled) .choice-lbl    { color: var(--paper); }
-    .choice-btn[data-c="scissors"]:hover:not(:disabled) .choice-lbl { color: var(--scissors); }
-
-    .history-row {
-      width: 100%;
-      display: flex; flex-direction: column; align-items: center; gap: .65rem;
-    }
-    .history-lbl { font-size: .58rem; letter-spacing: .22em; text-transform: uppercase; color: var(--muted); }
-    .history-dots { display: flex; gap: .42rem; flex-wrap: wrap; justify-content: center; }
-    .hdot {
-      width: 10px; height: 10px; border-radius: 50%;
-      border: 1.5px solid var(--border);
-      transition: background .3s, border-color .3s;
-    }
-    .hdot.win  { background: var(--p1-color); border-color: var(--p1-color); }
-    .hdot.lose { background: var(--p2-color); border-color: var(--p2-color); }
-    .hdot.draw { background: var(--scissors); border-color: var(--scissors); }
-
-    /* ══════════════════════════════════════════════
-       RESPONSIVE
-    ══════════════════════════════════════════════ */
-    @media (max-width: 620px) {
-      .lobby-grid { grid-template-columns: 1fr; }
-      .arena { grid-template-columns: 1fr 48px 1fr; gap: .5rem; }
-      .choice-box { width: 108px; height: 108px; font-size: 3rem; border-radius: 22px; }
-      .choice-btn-inner { width: 90px; height: 108px; }
-      .choice-emoji { font-size: 2.2rem; }
-      .scoreboard { padding: .9rem 1.4rem; gap: 1rem; }
-    }
-  </style>
+  <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
 
@@ -566,60 +14,43 @@
 
   <div id="app">
 
-    <!-- ══════════════════════════════════════════
-         SCREEN: AUTH
-    ══════════════════════════════════════════ -->
-    <div id="screen-auth" class="screen screen-active">
-      <div class="auth-wrap">
-
-        <div style="text-align:center;animation:fadeDown .7s ease both;">
-          <p class="kicker">Choose your weapon</p>
-          <h1 class="display-title">Rock<br>Paper<br>Scissors</h1>
-        </div>
-
-        <div class="card auth-card" style="animation:fadeUp .7s .15s ease both;">
-          <div class="tab-row">
-            <button class="tab-btn active" id="tab-login"  onclick="switchTab('login')">Log In</button>
-            <button class="tab-btn"        id="tab-signup" onclick="switchTab('signup')">Sign Up</button>
-          </div>
-
-          <div class="field">
-            <label for="auth-user">Username</label>
-            <input id="auth-user" type="text" placeholder="e.g. lyra_player" autocomplete="username" />
-          </div>
-          <div class="field">
-            <label for="auth-pass">Password</label>
-            <input id="auth-pass" type="password" placeholder="••••••" autocomplete="current-password" />
-          </div>
-          <div id="auth-error" class="error-msg" style="display:none;"></div>
-          <button class="btn btn-primary btn-lg" id="auth-submit" onclick="handleAuth()">Log In →</button>
-        </div>
-
-        <p style="text-align:center;font-size:.72rem;color:var(--muted);animation:fadeUp .7s .3s ease both;">
-          Accounts are saved locally on this device.
-        </p>
+    <!-- ══ AUTH ══ -->
+    <div id="screen-auth" class="screen active">
+      <div class="auth-title">
+        <p class="kicker">Choose your weapon</p>
+        <h1>Rock<br>Paper<br>Scissors</h1>
       </div>
+      <div class="card auth-card">
+        <div class="tab-row">
+          <button class="tab-btn active" id="tab-login"  onclick="switchTab('login')">Log In</button>
+          <button class="tab-btn"        id="tab-signup" onclick="switchTab('signup')">Sign Up</button>
+        </div>
+        <div class="field">
+          <label for="auth-user">Username</label>
+          <input id="auth-user" type="text" placeholder="e.g. lyra_rps" autocomplete="username"/>
+        </div>
+        <div class="field">
+          <label for="auth-pass">Password</label>
+          <input id="auth-pass" type="password" placeholder="••••••" autocomplete="current-password"/>
+        </div>
+        <div id="auth-error" class="error-msg" style="display:none"></div>
+        <button class="btn btn-primary btn-lg" id="auth-submit" onclick="handleAuth()">Log In →</button>
+      </div>
+      <p class="auth-hint">Accounts saved locally — sign in from this device.</p>
     </div>
 
-
-    <!-- ══════════════════════════════════════════
-         SCREEN: LOBBY
-    ══════════════════════════════════════════ -->
+    <!-- ══ LOBBY ══ -->
     <div id="screen-lobby" class="screen">
       <div class="lobby-wrap">
 
         <div class="lobby-top">
           <div>
             <p class="kicker">Game lobby</p>
-            <h2 style="font-family:'Bebas Neue',sans-serif;font-size:2.4rem;letter-spacing:.04em;
-                       background:linear-gradient(135deg,var(--rock),var(--paper));
-                       -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">
-              Choose Mode
-            </h2>
+            <div class="lobby-title">Choose Mode</div>
           </div>
-          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.5rem;">
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
             <div class="user-chip">
-              <div class="avatar" id="lobby-avatar">F</div>
+              <div class="user-chip-avatar" id="lobby-avatar">P</div>
               <span>Playing as <strong id="lobby-name">Player</strong></span>
             </div>
             <button class="btn btn-ghost btn-sm" onclick="signOut()">↩ Sign Out</button>
@@ -631,22 +62,21 @@
             <div class="lcard-icon">🤖</div>
             <div>
               <div class="lcard-title">vs AXIOM</div>
-              <div class="lcard-desc">Play against the machine. No waiting, pure skill.</div>
+              <div class="lcard-desc">Play the machine instantly. No waiting — pure skill.</div>
             </div>
             <button class="btn btn-accent btn-sm" onclick="startBotGame()">Play Now</button>
           </div>
-
           <div class="card lobby-card">
             <div class="lcard-icon">🔗</div>
             <div>
               <div class="lcard-title">Create Room</div>
-              <div class="lcard-desc">Generate a code and invite a friend to battle.</div>
+              <div class="lcard-desc">Generate a code and invite a friend to battle live.</div>
             </div>
             <button class="btn btn-primary btn-sm" onclick="createRoom()">Create Room</button>
           </div>
         </div>
 
-        <div class="card lobby-card" style="width:100%;">
+        <div class="card lobby-card" style="width:100%">
           <div class="lcard-icon">🚪</div>
           <div>
             <div class="lcard-title">Join a Room</div>
@@ -654,83 +84,69 @@
           </div>
           <div class="join-row">
             <input class="join-input" id="join-code" maxlength="4" placeholder="ABCD"
-                   oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')"
-                   onkeydown="if(event.key==='Enter')joinRoom()" />
+              oninput="this.value=this.value.toUpperCase()"
+              onkeydown="if(event.key==='Enter')joinRoom()"/>
             <button class="btn btn-primary" onclick="joinRoom()">Join →</button>
           </div>
-          <div id="join-error" class="error-msg" style="display:none;"></div>
+          <div id="join-error" class="error-msg" style="display:none"></div>
         </div>
 
       </div>
     </div>
 
-
-    <!-- ══════════════════════════════════════════
-         SCREEN: WAITING ROOM
-    ══════════════════════════════════════════ -->
+    <!-- ══ WAITING ══ -->
     <div id="screen-waiting" class="screen">
       <div class="waiting-wrap">
 
-        <div style="text-align:center;">
+        <div style="text-align:center">
           <p class="kicker" id="waiting-kicker">Share this code</p>
-          <h2 style="font-family:'Bebas Neue',sans-serif;font-size:2.8rem;letter-spacing:.04em;
-                     background:linear-gradient(135deg,var(--rock),var(--paper));
-                     -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">
-            Your Room
-          </h2>
+          <div class="waiting-title">Your Room</div>
         </div>
 
         <div class="code-card">
           <div class="code-label">Room Code</div>
           <div class="code-value" id="waiting-code">——</div>
-          <div class="code-hint">Share this 4-letter code with your friend</div>
+          <div class="code-hint">Share this code with your friend</div>
           <button class="copy-btn" id="copy-btn" onclick="copyCode()">Copy Code</button>
         </div>
 
         <div class="players-list">
-          <div style="font-size:.6rem;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);text-align:center;margin-bottom:.1rem;">Players</div>
+          <div class="players-label">Players</div>
           <div class="player-row joined" id="prow-1">
-            <div class="prow-avatar p1" id="prow-1-avatar">P</div>
-            <div class="prow-name" id="prow-1-name">Player 1</div>
+            <div class="prow-avatar p1" id="prow-1-av">P</div>
+            <div class="prow-name"      id="prow-1-name">Player 1</div>
             <div class="prow-tag host">Host ✓</div>
           </div>
           <div class="player-row" id="prow-2">
-            <div class="prow-avatar empty" id="prow-2-avatar">?</div>
-            <div class="prow-name" id="prow-2-name" style="color:var(--muted)">Waiting for player…</div>
-            <div class="prow-tag waiting" id="prow-2-tag">
+            <div class="prow-avatar empty" id="prow-2-av">?</div>
+            <div class="prow-name"         id="prow-2-name" style="color:var(--muted)">Waiting for player…</div>
+            <div class="prow-tag"          id="prow-2-tag">
               <span class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
             </div>
           </div>
         </div>
 
-        <div id="waiting-actions" style="display:flex;flex-direction:column;align-items:center;gap:.8rem;width:100%;">
-          <div id="waiting-hint" style="font-size:.75rem;color:var(--muted-lt);text-align:center;">
-            Waiting for your friend to join…
-          </div>
-          <button class="btn btn-primary btn-lg" id="btn-start" style="display:none;" onclick="hostStartGame()">
-            Start Battle ⚔️
-          </button>
+        <div class="waiting-actions">
+          <p class="waiting-hint" id="waiting-hint">Waiting for your friend to join…</p>
+          <button class="btn btn-primary btn-lg" id="btn-start" style="display:none" onclick="hostStartGame()">Start Battle ⚔️</button>
           <button class="btn btn-ghost btn-sm" onclick="leaveRoom()">← Back to Lobby</button>
         </div>
 
       </div>
     </div>
 
-
-    <!-- ══════════════════════════════════════════
-         SCREEN: GAME
-    ══════════════════════════════════════════ -->
+    <!-- ══ GAME ══ -->
     <div id="screen-game" class="screen">
       <div class="game-wrap">
 
         <div class="game-topbar">
-          <div class="game-topbar-left">
-            <div class="game-logo">Rock Paper Scissors</div>
-            <span class="badge badge-gold" id="game-mode-badge">vs AXIOM 🤖</span>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span class="game-logo">Rock Paper Scissors</span>
+            <span class="badge badge-gold" id="mode-badge">vs AXIOM 🤖</span>
           </div>
-          <div style="display:flex;gap:.6rem;align-items:center;">
+          <div style="display:flex;gap:8px;align-items:center">
             <span class="round-tag" id="round-tag">Round 1</span>
-            <button class="btn btn-ghost btn-sm" id="btn-leave" onclick="leaveGame()">← Lobby</button>
+            <button class="btn btn-ghost btn-sm" onclick="leaveGame()">← Lobby</button>
           </div>
         </div>
 
@@ -750,7 +166,7 @@
 
         <div class="arena">
           <div class="arena-side">
-            <div class="arena-side-lbl" id="arena-p1-lbl">Your Pick</div>
+            <div class="arena-side-lbl">Your Pick</div>
             <div class="choice-box idle" id="arena-p1">❓</div>
           </div>
           <div class="arena-mid">
@@ -766,14 +182,16 @@
         </div>
 
         <div class="result-banner">
-          <div class="result-text" id="result-text">—</div>
-          <div class="status-line" id="status-line" style="display:none;">
+          <div class="result-main" id="result-main"></div>
+          <div class="result-sub"  id="result-sub"></div>
+          <div class="status-line" id="status-line">
             <span class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
             <span id="status-msg">Waiting…</span>
           </div>
+          <div class="idle-prompt" id="idle-prompt">MAKE YOUR MOVE</div>
         </div>
 
-        <div class="choices-row" id="choices-row">
+        <div class="choices-row">
           <button class="choice-btn" data-c="rock"     onclick="makeChoice('rock')">
             <div class="choice-btn-inner"><span class="choice-emoji">🪨</span><span class="choice-lbl">Rock</span></div>
           </button>
@@ -785,7 +203,9 @@
           </button>
         </div>
 
-        <div class="history-row">
+        <p class="kbd-hint">Press R · P · S &nbsp;or&nbsp; 1 · 2 · 3</p>
+
+        <div class="history-wrap">
           <div class="history-lbl">Round History</div>
           <div class="history-dots" id="history-dots"></div>
         </div>
@@ -793,7 +213,7 @@
       </div>
     </div>
 
-  </div>
+  </div><!-- /app -->
 
   <script src="script.js"></script>
 </body>
